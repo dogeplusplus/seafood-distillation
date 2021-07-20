@@ -1,3 +1,3 @@
-# python-template
+# seafood-distillation
 
 TODO
