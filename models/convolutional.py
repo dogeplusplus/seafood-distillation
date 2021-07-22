@@ -3,13 +3,13 @@ import torch.nn as nn
 
 class BaseCNN(nn.Module):
     def __init__(self, filters, kernel_sizes, strides, num_classes):
-
+        super(BaseCNN, self).__init__()
         assert len(filters) == len(kernel_sizes), "Filters length != kernels"
         assert len(kernel_sizes) == len(strides), "Kernels length != strides"
 
         self.num_classes = num_classes
-        self.convolutions = []
-        for i in range(len(self.filters) - 1):
+        self.convolutions = nn.ModuleList()
+        for i in range(len(filters) - 1):
             self.convolutions.append(
                 nn.Conv2d(
                     filters[i],
@@ -18,7 +18,7 @@ class BaseCNN(nn.Module):
                     strides[i]
                 )
             )
-        self.flatten = nn.Flatten()
+        self.fc = nn.LazyLinear(self.num_classes)
         self.relu = nn.LeakyReLU(0.01)
         self.pool = nn.MaxPool2d((2, 2))
 
@@ -28,8 +28,8 @@ class BaseCNN(nn.Module):
             x = self.relu(x)
             x = self.pool(x)
 
-        x = self.flatten()
-        x = nn.Linear(x.shape[-1], self.num_classes)
+        x = nn.Flatten()(x)
+        x = self.fc(x)
         x = nn.Softmax()(x)
 
         return x
