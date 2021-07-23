@@ -50,10 +50,10 @@ class Distiller(object):
                 ncols=100,
                 total=len(train_dataset)
             )
-            for batch in train_bar:
+            for i, batch in enumerate(train_bar):
                 losses = self.distill_train_step(batch)
                 for loss in train_losses:
-                    train_losses[loss] += losses[loss]
+                    train_losses[loss] = (train_losses[loss] * i + losses[loss]) / (i+1)
                 self.display_metrics(train_losses, train_bar)
 
             self.writer.add_scalars("train", train_losses, e)
@@ -65,10 +65,10 @@ class Distiller(object):
                     ncols=100,
                     total=len(val_dataset)
                 )
-                for batch in val_bar:
+                for i, batch in enumerate(val_bar):
                     losses = self.distill_val_step(batch)
                     for loss in val_losses:
-                        val_losses[loss] += losses[loss]
+                        val_losses[loss] = (val_losses[loss] * i + losses[loss]) / (i+1)
                     self.display_metrics(val_losses, val_bar)
 
                 self.writer.add_scalars("val", val_losses, e)
@@ -167,10 +167,10 @@ class Trainer(object):
                 ncols=100,
                 total=len(train_dataset)
             )
-            for batch in train_bar:
+            for i, batch in enumerate(train_bar):
                 losses = self.train_step(batch)
                 for loss in train_losses:
-                    train_losses[loss] += losses[loss]
+                    train_losses[loss] = (train_losses[loss] * i + losses[loss]) / (i+1)
                 self.display_metrics(train_losses, train_bar)
 
             self.writer.add_scalars("train", train_losses, e)
@@ -182,10 +182,10 @@ class Trainer(object):
                     ncols=100,
                     total=len(val_dataset)
                 )
-                for batch in val_bar:
+                for i, batch in enumerate(val_bar):
                     losses = self.val_teacher_step(batch)
                     for loss in val_losses:
-                        val_losses[loss] += losses[loss]
+                        val_losses[loss] = (val_losses[loss] * i + losses[loss]) / (i+1)
                     self.display_metrics(val_losses, val_bar)
 
                 self.writer.add_scalars("val", val_losses, e)
