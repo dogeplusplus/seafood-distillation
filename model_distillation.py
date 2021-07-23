@@ -15,10 +15,11 @@ from processing.dataset import SeafoodDataset
 
 
 class Distiller(object):
-    def __init__(self, student, teacher,
+    def __init__(self, student, teacher, device,
         temperature=3, alpha=0.1, experiment_name=None):
         self.student = student
         self.teacher = teacher
+        self.device = device
 
         self.optimiser = optim.Adam(self.student.parameters())
         self.temperature = temperature
@@ -46,7 +47,7 @@ class Distiller(object):
             train_bar = tqdm.tqdm(
                 train_dataset,
                 desc=desc.format(e+1),
-                ncols=50,
+                ncols=100,
                 total=len(train_dataset)
             )
             for batch in train_bar:
@@ -61,7 +62,7 @@ class Distiller(object):
                 val_bar = tqdm.tqdm(
                     val_dataset,
                     desc=val_desc.format(e+1),
-                    ncols=50,
+                    ncols=100,
                     total=len(val_dataset)
                 )
                 for batch in val_bar:
@@ -87,6 +88,7 @@ class Distiller(object):
 
     def distill_train_step(self, sample):
         x, y = sample
+        x, y = x.to(self.device), y.to(self.device)
 
         teacher_pred = self.teacher(x)
 
@@ -107,6 +109,8 @@ class Distiller(object):
 
     def distill_val_step(self, sample):
         x, y = sample
+        x, y = x.to(self.device), y.to(self.device)
+        x.to(self.device)
 
         with torch.no_grad():
             student_pred = self.student(x)
@@ -132,11 +136,12 @@ class Distiller(object):
 
 
 class Trainer(object):
-    def __init__(self, model, model_name=None, experiment_name=None):
+    def __init__(self, model, device, model_name=None, experiment_name=None):
         self.model = model
         self.model_name = model_name
         if self.model_name is None:
             self.model_name = self.model.__name__()
+        self.device = device
 
         self.optimiser = optim.Adam(self.model.parameters())
         self.loss = nn.CrossEntropyLoss()
@@ -159,7 +164,7 @@ class Trainer(object):
             train_bar = tqdm.tqdm(
                 train_dataset,
                 desc=desc.format(e+1),
-                ncols=50,
+                ncols=100,
                 total=len(train_dataset)
             )
             for batch in train_bar:
@@ -174,7 +179,7 @@ class Trainer(object):
                 val_bar = tqdm.tqdm(
                     val_dataset,
                     desc=val_desc.format(e+1),
-                    ncols=50,
+                    ncols=100,
                     total=len(val_dataset)
                 )
                 for batch in val_bar:
@@ -189,6 +194,7 @@ class Trainer(object):
 
     def train_step(self, sample):
         x, y = sample
+        x, y = x.to(self.device), y.to(self.device)
 
         self.optimiser.zero_grad()
         pred = self.model(x)
@@ -202,6 +208,7 @@ class Trainer(object):
 
     def val_step(self, sample):
         x, y = sample
+        x, y = x.to(self.device), y.to(self.device)
 
         with torch.no_grad():
             pred = self.model(x)
@@ -232,6 +239,8 @@ def main():
     DATASET_DIR = "data/archive/Fish_Dataset"
     EXPERIMENT_NAME = "distillation"
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     dataset = SeafoodDataset(DATASET_DIR)
     val_ratio = 0.2
     val_size = int(len(dataset) * val_ratio)
@@ -244,13 +253,17 @@ def main():
     teacher = BaseCNN(teacher_filters, kernel_sizes, strides, num_classes)
     student_copy = BaseCNN(student_filters, kernel_sizes, strides, num_classes)
 
-    student_trainer = Trainer(student_copy, "student", EXPERIMENT_NAME)
-    teacher_trainer = Trainer(teacher, "teacher", EXPERIMENT_NAME)
+    student.to(device)
+    teacher.to(device)
+    student_copy.to(device)
+
+    student_trainer = Trainer(student_copy, device, "student", EXPERIMENT_NAME)
+    teacher_trainer = Trainer(teacher, device, "teacher", EXPERIMENT_NAME)
 
     trained_teacher = teacher_trainer.train(train_loader, val_loader, epochs)
     trained_student = student_trainer.train(train_loader, val_loader, epochs)
 
-    distill = Distiller(student, trained_teacher, experiment_name=EXPERIMENT_NAME)
+    distill = Distiller(student, trained_teacher, device, experiment_name=EXPERIMENT_NAME)
     distilled_student = distill.distill(train_loader, val_loader, epochs)
 
 if __name__ == "__main__":

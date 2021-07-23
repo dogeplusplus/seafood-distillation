@@ -30,6 +30,6 @@ class BaseCNN(nn.Module):
 
         x = nn.Flatten()(x)
         x = self.fc(x)
-        x = nn.Softmax()(x)
+        x = nn.Softmax(dim=-1)(x)
 
         return x
