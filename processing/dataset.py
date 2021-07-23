@@ -1,5 +1,6 @@
 import os
 import glob
+import torch
 
 from torch.utils.data import Dataset
 from torchvision.io import read_image
@@ -19,7 +20,7 @@ class SeafoodDataset(Dataset):
         path = self.image_paths[idx]
         image = read_image(path)
         label = os.path.basename(os.path.dirname(path))
-        class_idx = self.classes[label]
+        class_vector = self.classes[label]
         image = image.float() / 255.
 
-        return image, class_idx
+        return image, class_vector

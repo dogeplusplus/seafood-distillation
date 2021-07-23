@@ -2,6 +2,7 @@ import os
 import uuid
 import tqdm
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
@@ -28,7 +29,7 @@ class Distiller(object):
             self.experiment_name = uuid.uuid4()
 
         self.writer = SummaryWriter(log_dir=experiment_name)
-        self.loss = F.cross_entropy
+        self.loss = nn.CrossEntropyLoss()
 
     def distill(self, train_dataset, val_dataset=None, epochs=5):
 
@@ -75,6 +76,7 @@ class Distiller(object):
             self.student.state_dict(),
             os.path.join(self.experiment_name, "student.pt")
         )
+        return self.student
 
     def display_metrics(self, metrics_dict, progress_bar):
         evaluated_metrics = {
@@ -91,16 +93,16 @@ class Distiller(object):
         self.optimiser.zero_grad()
 
         student_pred = self.student(x)
-        student_loss = self.loss(y, student_pred)
+        student_loss = self.loss(student_pred, y)
         d_loss = self.distillation_loss(teacher_pred, student_pred)
 
         combined_loss = self.alpha * student_loss + (1 - self.alpha) * d_loss
         combined_loss.backward()
 
         return {
-            "student_loss": student_loss.numpy(),
-            "distillation_loss": d_loss.numpy(),
-            "combined_loss": combined_loss.numpy(),
+            "student_loss": student_loss.detach().numpy(),
+            "distillation_loss": d_loss.detach().numpy(),
+            "combined_loss": combined_loss.detach().numpy(),
         }
 
     def distill_val_step(self, sample):
@@ -109,16 +111,16 @@ class Distiller(object):
         with torch.no_grad():
             student_pred = self.student(x)
             teacher_pred = self.teacher(x)
-            student_loss = self.loss(y, student_pred)
+            student_loss = self.loss(student_pred, y)
             d_loss = self.distillation_loss(teacher_pred, student_pred)
 
             combined_loss = self.alpha * student_loss \
                 + (1 - self.alpha) * d_loss
 
         return {
-            "student_loss": student_loss.numpy(),
-            "distillation_loss": d_loss.numpy(),
-            "combined_loss": combined_loss.numpy(),
+            "student_loss": student_loss.detach().numpy(),
+            "distillation_loss": d_loss.detach().numpy(),
+            "combined_loss": combined_loss.detach().numpy(),
         }
 
     def distillation_loss(self, teacher_pred, student_pred):
@@ -137,7 +139,7 @@ class Trainer(object):
             self.model_name = self.model.__name__()
 
         self.optimiser = optim.Adam(self.model.parameters())
-        self.loss = F.cross_entropy
+        self.loss = nn.CrossEntropyLoss()
 
         self.experiment_name = experiment_name
         if experiment_name is None:
@@ -151,7 +153,7 @@ class Trainer(object):
 
         for e in range(epochs):
             train_losses = {
-                "loss": 0,
+                f"{self.model_name}_loss": 0,
             }
             val_losses = deepcopy(train_losses)
             train_bar = tqdm.tqdm(
@@ -190,12 +192,12 @@ class Trainer(object):
 
         self.optimiser.zero_grad()
         pred = self.model(x)
-        loss = self.loss(y, pred)
+        loss = self.loss(pred, y)
 
         loss.backward()
 
         return {
-            f"{self.model_name}_loss": loss.numpy(),
+            f"{self.model_name}_loss": loss.detach().numpy(),
         }
 
     def val_step(self, sample):
@@ -203,15 +205,15 @@ class Trainer(object):
 
         with torch.no_grad():
             pred = self.model(x)
-            loss = self.loss(y, pred)
+            loss = self.loss(pred, y)
 
         return {
-            f"{self.model_name}_loss": loss.numpy(),
+            f"{self.model_name}_loss": loss.detach().numpy(),
         }
 
     def display_metrics(self, metrics_dict, progress_bar):
         evaluated_metrics = {
-            k: str(v.result().numpy())[:7]
+            k: str(v)[:7]
             for k, v in metrics_dict.items()
         }
         progress_bar.set_postfix(**evaluated_metrics)
@@ -249,7 +251,7 @@ def main():
     trained_student = student_trainer.train(train_loader, val_loader, epochs)
 
     distill = Distiller(student, trained_teacher, experiment_name=EXPERIMENT_NAME)
-    distill.distill(train_loader, val_loader, epochs)
+    distilled_student = distill.distill(train_loader, val_loader, epochs)
 
 if __name__ == "__main__":
     main()
