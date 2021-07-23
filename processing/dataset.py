@@ -21,6 +21,5 @@ class SeafoodDataset(Dataset):
         image = read_image(path)
         label = os.path.basename(os.path.dirname(path))
         class_vector = self.classes[label]
-        image = image.float() / 255.
 
         return image, class_vector
